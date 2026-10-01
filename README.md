@@ -57,26 +57,28 @@
      on, and if you don't decide it here you'll discover it as a crash in
      Milestone 5. -->
 
+
+
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Searches the listings dataset for items that match the user's description, optional size, and optional maximum price, then ranks the matching items with the best matches first.
+- **Inputs:** `description` (`str`) — keywords describing the item the user wants; `size` (`str | None`) — an optional size filter that should match compatible size labels case-insensitively, such as `M` matching `S/M` or `M/L`; `max_price` (`float | None`) — an optional inclusive maximum price.
+- **Returns:** A list of matching listing dictionaries, ordered best match first, with each dictionary containing `id`, `title`, `description`, `category`, `style_tags`, `size`, `condition`, `price`, `colors`, `brand`, and `platform`. The list contains at most the configured search-result limit.
+- **When it has nothing:** Returns an empty list `[]` when no listings satisfy the search criteria. It does not return `None` or raise an exception for a normal no-match search.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Takes the selected thrift listing and the user's wardrobe and generates one or two outfit suggestions that pair the new item with pieces the user already owns when possible.
+- **Inputs:** `new_item` (`dict`) — the selected listing dictionary; `wardrobe` (`dict`) — a wardrobe dictionary containing an `items` list of wardrobe-item dictionaries.
+- **Returns:** A non-empty string containing outfit suggestions based on the selected item and the user's wardrobe.
+- **When it has nothing:** If the wardrobe contains no items, it still returns a non-empty string with general styling advice for the selected item instead of failing or returning an empty string.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Uses the outfit suggestion and selected listing to generate a short, post-style caption describing the thrift find and how it could be styled.
+- **Inputs:** `outfit` (`str`) — the outfit suggestion produced by `suggest_outfit`; `new_item` (`dict`) — the selected listing dictionary.
+- **Returns:** A two-to-four sentence caption that mentions the item, its price, its platform, and the overall style or vibe.
+- **When it has nothing:** If `outfit` is empty or contains only whitespace, it returns a descriptive fallback message rather than raising an exception or generating a normal fit card.
 
 ---
 
@@ -93,13 +95,14 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+
+**Branch rule:** If `search_listings` returns an empty list, put a helpful message in the session explaining that no matches were found and suggesting that the user change the description, size, or price limit, then stop the run. Otherwise, select the first search result and continue to `suggest_outfit`.
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:**  The query is parsed with deterministic string and regex matching. Price phrases such as `under $30` are extracted into `max_price`, explicit size phrases such as `size M` or `in size M` are extracted into `size`, and the remaining text becomes the item `description`.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** The original user query is stored in `session["query"]`. The parsed `description`, `size`, and `max_price` go into `session["parsed"]`. Search results go into `session["search_results"]`, the chosen listing goes into `session["selected_item"]`, the outfit suggestion goes into `session["outfit_suggestion"]`, and the final caption goes into `session["fit_card"]`.
 
 ---
 
