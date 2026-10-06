@@ -42,6 +42,8 @@
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
 
 
+FitFindr helps a user search a thrift-listing dataset using a natural-language request such as "vintage graphic tee under $30." It parses the request into a description, optional size, and maximum price, then searches the listings and selects the best-ranked match. If a match is found, FitFindr uses the user's wardrobe to suggest outfits and generates a short fit-card caption for the selected item. If nothing matches, the agent stops early and tells the user which search constraints they can change.
+
 
 ---
 
@@ -106,59 +108,92 @@
 
 ---
 
+
 ## Sample Run
-
-<!-- Two things go here.
-
-     1. One FULL query and its output, pasted as text.
-     2. Your three per-tool terminal tests — the command and what it printed. -->
 
 **One full query**
 
-```
-$ python app.py ask '...'
+```text
+$ python app.py ask 'vintage graphic tee under $30'
 
+Found:    Graphic Tee — 2003 Tour Bootleg Style — $24.0 on depop
+
+Outfit:   **Outfit 1: Y2K Grunge Streetwear**
+*   **Bottoms:** Baggy straight-leg jeans (dark blue)
+*   **Shoes:** Chunky white sneakers
+*   **Outerwear:** Vintage black denim jacket
+*   **Accessories:** Black crossbody bag
+
+**Why it works:**
+The vintage tour graphic tee pairs naturally with baggy dark denim for an effortless, authentic 2000s streetwear silhouette. Tossing on the slightly cropped vintage black denim jacket adds texture and dimension while keeping the color palette grounded. The chunky white sneakers brighten the look and anchor the heavy, relaxed proportions of the jeans, while the black crossbody bag keeps it practical and sleek.
+
+***
+
+**Outfit 2: Contrast Grunge & Tailoring**
+*   **Bottoms:** Wide-leg khaki trousers
+*   **Shoes:** Black combat boots
+*   **Accessories:** Brown leather belt, Black crossbody bag
+
+**Why it works:**
+This look plays with high-low styling by contrasting the distressed, rebellious energy of the bootleg graphic tee with the polished structure of wide-leg khaki trousers. Tucking the tee in with the brown leather belt defines the waist, and the black combat boots add a tough, grunge edge that ties back to the black tones in the tee.
+
+Fit card: Score this vintage-style 2003 tour graphic tee for just $24.00 on depop. Create an effortless Y2K grunge streetwear look by pairing it with baggy dark blue jeans and a vintage black denim jacket. Complete the relaxed silhouette with chunky white sneakers and a sleek black crossbody bag.
+
+0 model calls this session, 2 served from cache
 ```
 
 **The three tools, tested one at a time**
 
-```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
+```text
+$ python -c "from tools import search_listings; print([(x['id'], x['title'], x['price']) for x in search_listings('graphic tee', max_price=30)])"
 
-```
-
-```
-$ python -c "from tools import suggest_outfit; ..."
-
+[('lst_002', 'Y2K Baby Tee — Butterfly Print', 18.0), ('lst_033', 'Vintage Band Tee — Faded Grey', 19.0), ('lst_006', 'Graphic Tee — 2003 Tour Bootleg Style', 24.0), ('lst_015', 'Vintage Graphic Hoodie — Faded Black', 26.0), ('lst_017', 'Mesh Long-Sleeve Top — Black', 15.0), ('lst_011', 'Low-Rise Cargo Pants — Khaki', 27.0)]
 ```
 
-```
-$ python -c "from tools import create_fit_card; ..."
+```text
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
 
+Here are two outfit suggestions using your Vintage Levi's 501 Jeans:
+
+### Outfit 1: Streetwear Casual
+* **Top:** White ribbed tank top
+* **Outerwear:** Vintage black denim jacket
+* **Shoes:** Chunky white sneakers
+* **Accessories:** Black crossbody bag
+
+**Why it works:** The fitted white tank balances the straight-leg vintage denim, while the slightly cropped black jacket adds contrast and highlights the waist. Chunky sneakers and the crossbody bag lean into the streetwear tag, keeping the look effortless and grounded.
+
+---
+
+### Outfit 2: Classic Contrast
+* **Top:** Oversized grey crewneck sweatshirt
+* **Shoes:** Black combat boots
+* **Accessories:** Brown leather belt, Black crossbody bag
+
+**Why it works:** Tucking the front of the oversized grey crewneck into the 501s creates a relaxed, balanced silhouette. The black combat boots add an edge that contrasts nicely with the medium wash denim, while the brown belt ties the vintage aesthetic together.
+```
+
+```text
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('Pair these jeans with a white tank and chunky sneakers for a relaxed streetwear look.', load_listings()[0]))"
+
+Grab these classic Vintage Levi's 501 Jeans in a medium wash for just $38.00 on depop. Pair them with a white tank and chunky sneakers to capture a relaxed streetwear look. This indigo denim staple brings effortless vintage style to your everyday rotation.
 ```
 
 ---
 
 ## How I Used AI
 
-<!-- Two specific moments. What you asked, what came back, what you changed.
-
-     "I used Claude to help me code" is not enough.
-
-     "I gave Claude my search_listings spec. It returned None on no match
-     instead of an empty list, so I changed it" is the level we want. -->
-
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked AI to help me turn the starter descriptions of the three FitFindr tools into precise contracts for the README.
+- *What came back:* It suggested explicit input types, specific return values, empty-case behavior, and pointed out that plain substring size matching could incorrectly match values such as `S` with `US 9`.
+- *What I changed:* I defined each tool's inputs and outputs before implementation, made `search_listings` return an empty list on no match, and implemented token-based size matching so compound sizes such as `S/M` can match `M` without unsafe substring matching.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked AI to review my implementation while I tested the search tool and planning loop.
+- *What came back:* It noticed that a mesh top mentioning "graphic tee" in its description ranked above actual graphic tees, and later caught an indentation issue that caused the agent to return after the search stage instead of continuing through the loop.
+- *What I changed:* I weighted title, category, and style-tag matches more heavily than description matches. I also fixed the loop indentation so a successful search continues to `suggest_outfit` and `create_fit_card`, while an empty search returns early.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
