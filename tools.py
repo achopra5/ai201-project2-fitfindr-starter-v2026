@@ -23,6 +23,64 @@ the description has to say what is *in* the list.
 import config  # noqa: F401 — you'll use this in search_listings
 from generate import generate
 from utils.data_loader import load_listings
+import re
+
+
+
+
+_STOPWORDS = {
+    "a", "an", "and", "the", "for", "with", "under", "over",
+    "in", "of", "to", "looking", "want", "need", "find"
+}
+
+
+def _keywords(text: str) -> set[str]:
+    """Return useful lowercase words for simple keyword matching."""
+    words = re.findall(r"[a-z0-9']+", (text or "").lower())
+    return {
+        word
+        for word in words
+        if word not in _STOPWORDS and len(word) > 1
+    }
+
+
+def _size_tokens(size: str) -> set[str]:
+    """Normalize a size string into comparable size tokens."""
+    cleaned = re.sub(r"\([^)]*\)", " ", size or "").upper()
+    parts = [part.strip() for part in cleaned.split("/")]
+
+    tokens = set()
+
+    for part in parts:
+        part = " ".join(part.split())
+        if not part:
+            continue
+
+        tokens.add(part)
+
+        # "US 8" should also be comparable with a user asking for "8".
+        shoe_match = re.fullmatch(r"(?:US|UK|EU)\s*(\d+(?:\.\d+)?)", part)
+        if shoe_match:
+            tokens.add(shoe_match.group(1))
+
+        # "W30 L30" should also expose "W30".
+        waist_match = re.match(r"(W\d+)", part)
+        if waist_match:
+            tokens.add(waist_match.group(1))
+
+    return tokens
+
+
+def _size_matches(wanted: str, listing_size: str) -> bool:
+    """Return True when the requested size is compatible with the listing."""
+    wanted_tokens = _size_tokens(wanted)
+    listing_tokens = _size_tokens(listing_size)
+
+    if any(token.startswith("ONE SIZE") for token in listing_tokens):
+        return True
+
+    return bool(wanted_tokens & listing_tokens)
+
 
 
 # ── Tool 1: search_listings ───────────────────────────────────────────────────
@@ -78,8 +136,46 @@ def search_listings(
     Test it from a terminal before you move on:
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
-    # TODO: replace this with your implementation
-    return []
+    listings = load_listings()
+    query_words = _keywords(description)
+
+    scored = []
+
+    for listing in listings:
+        if max_price is not None and listing["price"] > max_price:
+            continue
+
+        if size is not None and not _size_matches(size, listing["size"]):
+            continue
+
+        primary_text = " ".join([
+            listing["title"],
+            listing["category"],
+            " ".join(listing["style_tags"]),
+        ])
+
+        secondary_text = " ".join([
+            listing["description"],
+            " ".join(listing["colors"]),
+            listing["brand"] or "",
+        ])
+
+        primary_matches = len(query_words & _keywords(primary_text))
+        secondary_matches = len(query_words & _keywords(secondary_text))
+
+        score = (3 * primary_matches) + secondary_matches
+
+        if score > 0:
+            scored.append((score, listing))
+
+    scored.sort(
+        key=lambda pair: (-pair[0], pair[1]["price"])
+    )
+
+    return [
+        listing
+        for _, listing in scored[:config.SEARCH_RESULT_LIMIT]
+    ]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -112,8 +208,58 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    items = wardrobe.get("items", [])
+
+    item_summary = (
+        f"Item: {new_item['title']}\n"
+        f"Category: {new_item['category']}\n"
+        f"Colors: {', '.join(new_item['colors'])}\n"
+        f"Style tags: {', '.join(new_item['style_tags'])}\n"
+    )
+
+    if not items:
+        prompt = f"""
+{item_summary}
+
+The user has no saved wardrobe items yet.
+Suggest one or two concise ways they could style this item using general
+clothing categories, colors, and aesthetics.
+""".strip()
+    else:
+        wardrobe_lines = []
+
+        for item in items:
+            line = (
+                f"- {item['name']} | category: {item['category']} | "
+                f"colors: {', '.join(item['colors'])} | "
+                f"styles: {', '.join(item['style_tags'])}"
+            )
+
+            if item.get("notes"):
+                line += f" | notes: {item['notes']}"
+
+            wardrobe_lines.append(line)
+
+        wardrobe_text = "\n".join(wardrobe_lines)
+
+        prompt = f"""
+{item_summary}
+
+The user's wardrobe:
+{wardrobe_text}
+
+Suggest one or two outfits using the new item and pieces from this wardrobe.
+Name the wardrobe pieces you chose and briefly explain why they work together.
+Do not invent items the user owns.
+""".strip()
+
+    return generate(
+        prompt,
+        system=(
+            "You are FitFindr's outfit-planning tool. Give concise, specific "
+            "styling suggestions grounded in the item and wardrobe provided."
+        ),
+    )
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -152,5 +298,31 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not outfit or not outfit.strip():
+        return "A fit card cannot be created until an outfit suggestion is available."
+
+    prompt = f"""
+Selected item: {new_item['title']}
+Price: ${new_item['price']:.2f}
+Platform: {new_item['platform']}
+Colors: {', '.join(new_item['colors'])}
+Style tags: {', '.join(new_item['style_tags'])}
+
+Outfit suggestion:
+{outfit}
+
+Write a social-style fit caption in 2 to 4 sentences.
+Mention the selected item, its exact price (${new_item['price']:.2f}),
+and the platform ({new_item['platform']}) once each.
+Describe the overall vibe of the outfit.
+Do not invent facts about the listing.
+""".strip()
+
+    return generate(
+        prompt,
+        system=(
+            "You are FitFindr's fit-card writer. Write short, natural captions "
+            "using only the facts supplied. Keep every caption between 2 and "
+            "4 sentences."
+        ),
+    )   
