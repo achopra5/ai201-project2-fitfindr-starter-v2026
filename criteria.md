@@ -29,6 +29,8 @@ tool calls and returns a fit card — in at least 4 of 5 tries.
      "my search is a plain keyword match and some phrasings will miss" is a
      real answer. -->
 
+     The main happy path of the project is a full successful run. Because two later steps use the model, some variation is expected, so 4/5 is a realistic target.
+
 ---
 
 ## 2. An impossible query stops before the second tool
@@ -39,6 +41,7 @@ Given a query that matches no listings, the agent stops before calling
 **Why this target:**
 <!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
      about this path? -->
+     This is the main branch in the planning loop. It should behave deterministically every time and should never continue into later tool calls when nothing was found.
 
 ---
 
@@ -55,8 +58,14 @@ Given a query that matches no listings, the agent stops before calling
      suggest_outfit is the shape you're after. -->
 
 
+Given a query that matches at least one listing, the item stored in
+`session["selected_item"]` is the same item passed into `suggest_outfit`,
+verified by matching the selected item's `id` — 5 of 5 tries.
 
 **Why this target:**
+State transfer is deterministic, so the selected listing should never change
+between the search step and the outfit step. Any mismatch would mean the agent
+is carrying state incorrectly.
 
 
 
@@ -76,8 +85,14 @@ Given a query that matches no listings, the agent stops before calling
      be turned into a number. -->
 
 
+Given a successful run, `create_fit_card` returns a caption of 2 to 4 sentences
+that includes the selected item's price and platform — in at least 4 of 5 tries.
 
 **Why this target:**
+The fit card is model-generated, so its wording can vary between runs. However,
+the price and platform are important factual details and should appear
+consistently, so 4 of 5 is a realistic target.
+
 
 
 
@@ -92,9 +107,13 @@ Given a query that matches no listings, the agent stops before calling
      search respects a price ceiling — anything, as long as it names a number
      or an observable outcome. -->
 
-
+Given a query with a maximum price, every listing returned by
+`search_listings` has a price less than or equal to that maximum — 5 of 5 tries.
 
 **Why this target:**
+Price filtering is deterministic Python logic rather than model-generated
+behavior. A result above the user's stated budget would be a search bug, so
+5 of 5 is appropriate.
 
 
 
