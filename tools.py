@@ -163,10 +163,16 @@ def search_listings(
         primary_matches = len(query_words & _keywords(primary_text))
         secondary_matches = len(query_words & _keywords(secondary_text))
 
-        score = (3 * primary_matches) + secondary_matches
+        # For multi-word searches, require at least two important query words
+        # to match the listing's title/category/style tags. This avoids weak
+        # matches such as denim shorts appearing for "denim jacket".
+        required_primary_matches = 1 if len(query_words) <= 1 else 2
 
-        if score > 0:
-            scored.append((score, listing))
+        if primary_matches < required_primary_matches:
+            continue
+
+        score = (3 * primary_matches) + secondary_matches
+        scored.append((score, listing))
 
     scored.sort(
         key=lambda pair: (-pair[0], pair[1]["price"])
