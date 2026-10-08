@@ -161,8 +161,23 @@ def run_agent(query: str, wardrobe: dict) -> dict:
                     "size": parsed["size"],
                     "max_price": parsed["max_price"],
                 },
-)
+            )
 
+
+            trace.step(
+                "search_listings (via MCP)",
+                inputs=(
+                    f"description={parsed['description']!r}, "
+                    f"size={parsed['size']!r}, "
+                    f"max_price={parsed['max_price']!r}"
+                ),
+                returned=session["search_results"],
+                note=(
+                    "branch: empty, stopping"
+                    if not session["search_results"]
+                    else "branch: results found, continuing"
+                ),
+            )
             if not session["search_results"]:
                 session["error"] = (
                     "No matching listings found. Try changing the description, "
@@ -178,6 +193,16 @@ def run_agent(query: str, wardrobe: dict) -> dict:
                 session["selected_item"],
                 session["wardrobe"],
             )
+
+            trace.step(
+                "suggest_outfit",
+                inputs=(
+                    f"selected_item={session['selected_item']['id']}, "
+                    f"wardrobe_items={len(session['wardrobe'].get('items', []))}"
+                ),
+                returned=session["outfit_suggestion"],
+            )
+
             stage = "fit_card"
 
         elif stage == "fit_card":
@@ -185,6 +210,13 @@ def run_agent(query: str, wardrobe: dict) -> dict:
                 session["outfit_suggestion"],
                 session["selected_item"],
             )
+
+            trace.step(
+                "create_fit_card",
+                inputs=f"selected_item={session['selected_item']['id']}",
+                returned=session["fit_card"],
+            )
+
             return session
 
 
