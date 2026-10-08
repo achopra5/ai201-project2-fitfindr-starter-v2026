@@ -188,11 +188,28 @@ def run_agent(query: str, wardrobe: dict) -> dict:
             session["selected_item"] = session["search_results"][0]
             stage = "outfit"
 
+        
+
         elif stage == "outfit":
-            session["outfit_suggestion"] = suggest_outfit(
-                session["selected_item"],
-                session["wardrobe"],
-            )
+            try:
+                session["outfit_suggestion"] = suggest_outfit(
+                    session["selected_item"],
+                    session["wardrobe"],
+                )
+            except ModelUnavailable as exc:
+                trace.step(
+                    "suggest_outfit",
+                    inputs=(
+                        f"selected_item={session['selected_item']['id']}, "
+                        f"wardrobe_items={len(session['wardrobe'].get('items', []))}"
+                    ),
+                    note=f"model unavailable: {exc}",
+                )
+                session["error"] = (
+                    "Outfit suggestions are temporarily unavailable because the model "
+                    "could not be reached. Please try again later."
+                )
+                return session
 
             trace.step(
                 "suggest_outfit",
@@ -206,10 +223,22 @@ def run_agent(query: str, wardrobe: dict) -> dict:
             stage = "fit_card"
 
         elif stage == "fit_card":
-            session["fit_card"] = create_fit_card(
-                session["outfit_suggestion"],
-                session["selected_item"],
-            )
+            try:
+                session["fit_card"] = create_fit_card(
+                    session["outfit_suggestion"],
+                    session["selected_item"],
+                )
+            except ModelUnavailable as exc:
+                trace.step(
+                    "create_fit_card",
+                    inputs=f"selected_item={session['selected_item']['id']}",
+                    note=f"model unavailable: {exc}",
+                )
+                session["error"] = (
+                    "The fit card could not be created because the model is temporarily "
+                    "unavailable. Please try again later."
+                )
+                return session
 
             trace.step(
                 "create_fit_card",
