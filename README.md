@@ -264,14 +264,12 @@ However, the traces exposed a search-quality problem that the original criteria 
       in:  description='vintage graphic tee', size=None, max_price=30.0
       out: 4 items: Graphic Tee — 2003 Tour Bootleg Style, Y2K Baby Tee — Butterfly Print, Vintage Band Tee — Faded Grey … +1 more
       →    branch: results found, continuing
-
 [2] suggest_outfit
       in:  selected_item=lst_006, wardrobe_items=10
-      out: **Outfit 1: Y2K Grunge Streetwear** ...
-
+      out: **Outfit 1: Y2K Grunge Streetwear** * **Pieces used:** Baggy straight-leg jeans, black combat boots, vintage b…
 [3] create_fit_card
       in:  selected_item=lst_006
-      out: Score this vintage-style 2003 tour graphic tee for just $24.00 on depop ...
+      out: Channel major Y2K grunge streetwear energy with this vintage-style graphic tee, available now on depop for $24…
 ```
 
 **Empty search**
